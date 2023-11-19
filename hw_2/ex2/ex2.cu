@@ -60,13 +60,18 @@ int main(int argc, char** argv) {
 
     //@@ Insert code below to initialize hostInputA and hostInputB to random numbers, and create reference result in CPU
     srand(time(0));
+    for (int i = 0; i < numARows * numAColumns; i++) {
+      hostInputA[i] = randData(0, 100);
+    }
+    for (int i = 0; i < numBRows * numBColumns; i++) {
+      hostInputB[i] = randData(0, 100);
+    }
+
     resultRef = (DataType*)malloc(sizeof(DataType) * numARows * numBColumns);
     for (int i = 0; i < numARows; i++) {
         for (int j = 0; j < numBColumns; j++) {
             hostOutput[i * numBColumns + j] = 0;
             for (int k = 0; k < numAColumns; k++) {
-                hostInputA[i * numAColumns + k] = randData(0, 100);
-                hostInputB[k * numBColumns + j] = randData(0, 100);
                 resultRef[i * numBColumns + j] += hostInputA[i * numAColumns + k] * hostInputB[k * numBColumns + j];
             }
         }

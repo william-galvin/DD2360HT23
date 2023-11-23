@@ -1,3 +1,13 @@
+/*
+Usage: 
+$ make
+$ ./ex2 <n> <m> <m> <q>
+
+Output:
+<copy-time (host -> device)>,<kernel-time>,<copy-time (device -> host)>
+Times are in microseconds
+*/
+
 #include <stdio.h>
 #include <sys/time.h>
 #include <cstdlib>
@@ -28,8 +38,8 @@ DataType randData(DataType min, DataType max) {
 
 int main(int argc, char** argv) {
 
-    if (argc != 3) {
-      printf("expected three arguments, found %d\n", argc);
+    if (argc != 5) {
+      printf("expected 5 arguments, found %d\n", argc);
       exit(-1);
     }
 
@@ -45,18 +55,26 @@ int main(int argc, char** argv) {
     int numAColumns; // number of columns in the matrix A
     int numBRows;    // number of rows in the matrix B
     int numBColumns; // number of columns in the matrix B
+    int numCRows;
+    int numCColumns;
 
     numARows = atoi(argv[1]);
     numAColumns = atoi(argv[2]);
-    numBRows = numAColumns;
-    numBColumns = numARows;
+    numBRows = atoi(argv[3]);
+    numBColumns = atoi(argv[4]);
 
-    printf("%d,", numARows * numAColumns);
+    if (numAColumns != numBRows) {
+      printf("Error: Num A rows must equal num B rows.\n");
+      exit(-1);
+    }
+
+    numCRows = numARows;
+    numCColumns = numBColumns;
 
     //@@ Insert code below to allocate Host memory for input and output
     hostInputA = (DataType*)malloc(sizeof(DataType) * numARows * numAColumns);
     hostInputB = (DataType*)malloc(sizeof(DataType) * numBRows * numBColumns);
-    hostOutput = (DataType*)malloc(sizeof(DataType) * numARows * numBColumns);
+    hostOutput = (DataType*)malloc(sizeof(DataType) * numCRows * numCColumns);
 
     //@@ Insert code below to initialize hostInputA and hostInputB to random numbers, and create reference result in CPU
     srand(time(0));
@@ -80,13 +98,13 @@ int main(int argc, char** argv) {
     //@@ Insert code below to allocate GPU memory here
     cudaMalloc(&deviceInputA, sizeof(DataType) * numARows * numAColumns);
     cudaMalloc(&deviceInputB, sizeof(DataType) * numBRows * numBColumns);
-    cudaMalloc(&deviceOutput, sizeof(DataType) * numARows * numBColumns);
+    cudaMalloc(&deviceOutput, sizeof(DataType) * numCRows * numCColumns);
 
     //@@ Insert code to below to Copy memory to the GPU here
     clock_t start = clock();
     cudaMemcpy(deviceInputA, hostInputA, sizeof(DataType) * numARows * numAColumns, cudaMemcpyHostToDevice);
     cudaMemcpy(deviceInputB, hostInputB, sizeof(DataType) * numBRows * numBColumns, cudaMemcpyHostToDevice);
-    cudaMemcpy(deviceOutput, hostOutput, sizeof(DataType) * numARows * numBColumns, cudaMemcpyHostToDevice);
+    cudaMemcpy(deviceOutput, hostOutput, sizeof(DataType) * numCRows * numCColumns, cudaMemcpyHostToDevice);
     printf("%ld,", clock() - start);
 
     //@@ Initialize the 2D grid and block dimensions here

@@ -1,18 +1,24 @@
-All bench marks used with input length 262144 (512^2) after several "warm up" runs
+# Histogram Optimizations
+
+All bench marks used with input length 262144 (512^2) after several "warm up" runs, averaged over 10 runs
+
+To run a benchmark:
+1. cd into ex1/{optimization}
+2. make
+3. run `$ ../run.py` (10 runs with warmup) or `$ ./ex1 <n>` 
 
 Ideas to try:
 - Shared memory (several kinds to try)
-- Smaller datatypes (use problem statement to pick smallest possible)
-- Combine kernels
+- Combine kernels (one kernel call instead of 2)
 
 
 ## Initial (Naive) Implementation {/base}:
 Results:
 ```
-Copy host => device: 581
-kernel 1: 18
-kernel 2: 11
-Copy device => host: 62
+copy H => D: 626.5
+kernel1: 24.9
+kernel2: 7.7
+copy D => H: 130.8
 ```
 
 These are the times to beat for optimizations to be considered useful.
@@ -31,10 +37,10 @@ Implementation:
 
 Results:
 ```
-Copy host => device: 390
-kernel 1: 22
-kernel 2: 5
-Copy device => host: 257
+copy H => D: 405.1
+kernel1: 31.1
+kernel2: 8.7
+copy D => H: 308.6
 ```
 These results appear to show a modest speed up in host -> device copy, but a slowdown everywhere else.
 
@@ -45,15 +51,33 @@ Idea: Overlap data transfer and computation time using streams
 
 Implementation: Since we are using a modern version of cuda, we have access to Hyper-Q and can choose approach 1 or 2 arbitrarily. For ease of timing, we'll choose approach 2, as described in Lecture: Optimizing Host-Device Data Communication III - Code Examples.
 
-Also note: we need to add synchronization between calls to device, for correctness
+Note: Fore ease of timeing, one combined kernel time is reported, even though the kernels are run separately.
+
+Also note: we need to add synchronization between calls to device, for correctness.
 
 Results:
 ```
-Copy host => device: 641
-both kernels: 174
-Copy device => host: 909
+warmups complete
+copy H => D: 809.0
+kernel (combined): 210.5
+copy D => H: 957.2
 ```
 
 These results appear to show that using streams is not helpful in this context.
 
 ---
+
+## Attempt #3: Smaller Datatypes {/small}
+Idea: Since the maximum value of a bin is 127 and the maximum random int is 4095 we can use 8-bit ints for the bins and 16-but ints for the random numbers. These are smaller than the default `uint`, and should be faster to copy back and forth. Also, the GPU may have hardware optimizations to make the kernels faster.
+
+Implementation: We use `uint16_t` for both bins and input ints, even though bins can technically be `uint8_t`. This makes clamping values easier, although if we combine both kernels, perhaps we can use `uint8_t` for bins more easily. Also note that we had to find an atomicAdd operation not natively supported by cuda.
+
+Results:
+```
+copy H => D: 478.2
+kernel1: 20.6
+kernel2: 5.5
+copy D => H: 125.9
+```
+
+These results show that using smaller datatypes doesn't dramatically improve speed.

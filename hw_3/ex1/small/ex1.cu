@@ -16,7 +16,7 @@
 #define NUM_BINS 4096
 #define TPB 32
 
-// CUDA doesn't natively support atomicAdd for uint_8
+// CUDA doesn't natively support atomicAdd for uint_16
 // need to do some address black magic
 // https://forums.developer.nvidia.com/t/how-to-use-atomiccas-to-implement-atomicadd-short-trouble-adapting-programming-guide-example/22712
 __device__ short atomicAddShort(uint16_t* address, short val) {

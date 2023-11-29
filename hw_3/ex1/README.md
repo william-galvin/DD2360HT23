@@ -16,6 +16,7 @@ Copy device => host: 62
 ```
 
 These are the times to beat for optimizations to be considered useful.
+
 ---
 
 ## Attempt 1: Packing {/pack}
@@ -37,6 +38,8 @@ Copy device => host: 257
 ```
 These results appear to show a modest speed up in host -> device copy, but a slowdown everywhere else.
 
+---
+
 ## Attempt #2 Streams {/stream}
 Idea: Overlap data transfer and computation time using streams
 
@@ -52,3 +55,5 @@ Copy device => host: 909
 ```
 
 These results appear to show that using streams is not helpful in this context.
+
+---

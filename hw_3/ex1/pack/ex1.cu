@@ -38,7 +38,7 @@ __global__ void convert_kernel(unsigned int *bins, unsigned int num_bins) {
 
 
 uint randInt() {
-  uint div = RAND_MAX / NUM_BINS;
+  uint div = RAND_MAX / (NUM_BINS - 1);
   return (rand() / div);
 }
 

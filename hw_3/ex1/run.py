@@ -8,6 +8,11 @@ Expects input from stdin in the form
     Copy host => device: 654
     both kernels: 170
     Copy device => host: 739
+or
+    Copy host => device: 350
+    kernel 1: 20
+    kernel 2: 9
+    Copy device => host: 60
 
 Usage:
     $ cd ex1/base

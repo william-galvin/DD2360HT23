@@ -8,7 +8,7 @@ To run a benchmark:
 3. run `$ ../run.py` (10 runs with warmup) or `$ ./ex1 <n>` 
 
 Ideas to try:
-- Shared memory (several kinds to try)
+- memory optimizations (shared, pinned, unified, etc)
 - Combine kernels (one kernel call instead of 2)
 
 
@@ -81,3 +81,31 @@ copy D => H: 125.9
 ```
 
 These results show that using smaller datatypes doesn't dramatically improve speed.
+
+---
+
+## Attempt #4: Combine kernels {/combined}
+Idea: launching kernels is expensive---can we combine the two kernerls into one?
+
+Results:
+```
+copy H => D: 693.4
+kernel (combined): 26.3
+copy D => H: 188.5
+```
+
+If there is a difference, our timing code doesn't pick up on it.
+
+---
+
+## Attempt #5: Use shared memory {/shared}
+Idea: We can avoid waiting for locks on atomic add if we have a separate shared histogram for each block and combine them at the end.
+
+Results:
+```
+copy H => D: 653.9
+kernel1: 34.0
+kernel2: 11.6
+copy D => H: 4705.6
+```
+Why is the copy-back so slow?

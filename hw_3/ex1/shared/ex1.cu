@@ -21,27 +21,33 @@ __global__ void histogram_kernel(unsigned int *input, unsigned int *bins,
                                  unsigned int num_bins) {
                                     
   __shared__ unsigned int sharedBins[NUM_BINS];
+  // shared memory not guarenteed to start at 0
+  for (int i = threadIdx.x; i < NUM_BINS; i += blockDim.x) {
+    sharedBins[i] = 0;
+  }
+  __syncthreads();
+
   uint index = blockDim.x * blockIdx.x + threadIdx.x;
   if (index >= num_elements) {
     return;
   }
 
-  atomicAdd(&bins[input[index]], 1);
+  atomicAdd(&sharedBins[input[index]], 1);
   __syncthreads();
+
+  if (threadIdx.x == 0) {
+    for (int i = 0; i < NUM_BINS; i++) {
+      atomicAdd(&bins[i], sharedBins[i]);
+    }
+  }
 }
 
-__global__ void convert_kernel(unsigned int *bins, unsigned int num_bins) {
-  __shared__ unsigned int sharedBins[NUM_BINS];
-  
+__global__ void convert_kernel(unsigned int *bins, unsigned int num_bins) {  
   uint index = blockDim.x * blockIdx.x + threadIdx.x;
   if (index >= num_bins || bins[index] <= 127) {
     return;
   }
-
-  sharedBins[index] = 127;
-
-  __syncthreads();
-
+  bins[index] = 127;
 }
 
 

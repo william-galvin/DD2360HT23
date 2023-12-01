@@ -17,7 +17,24 @@
 #define NUM_BINS 4096
 #define TPB 32
 
-__global__ void histogram_kernel(unsigned int *input, unsigned int *bins,
+// CUDA doesn't natively support atomicAdd for uint_16
+// need to do some address black magic
+// https://forums.developer.nvidia.com/t/how-to-use-atomiccas-to-implement-atomicadd-short-trouble-adapting-programming-guide-example/22712
+__device__ short atomicAddShort(uint16_t* address, short val) {
+  unsigned int *base_address = (unsigned int *) ((char *)address - ((size_t)address & 2));
+  unsigned int long_val = ((size_t)address & 2) ? ((unsigned int)val << 16) : (unsigned short)val;
+  unsigned int long_old = atomicAdd(base_address, long_val);
+  if((size_t)address & 2) {
+    return (short)(long_old >> 16);
+  } else {
+    unsigned int overflow = ((long_old & 0xffff) + long_val) & 0xffff0000;
+    if (overflow)
+      atomicSub(base_address, overflow);
+      return (short)(long_old & 0xffff);
+    }
+}
+
+__global__ void histogram_kernel(uint16_t *input, uint16_t *bins,
                                  unsigned int num_elements,
                                  unsigned int num_bins) {
 
@@ -25,17 +42,12 @@ __global__ void histogram_kernel(unsigned int *input, unsigned int *bins,
   if (index >= num_elements) {
     return;
   }
-  atomicAdd(&bins[input[index]], 1);
-}
+  atomicAddShort(&bins[input[index]], 1);
 
-__global__ void convert_kernel(unsigned int *bins, unsigned int num_bins) {
-  uint index = blockDim.x * blockIdx.x + threadIdx.x;
-  if (index >= num_bins || bins[index] <= 127) {
-    return;
+  if (bins[input[index]] > 127) {
+    bins[input[index]] = 127;
   }
-  bins[index] = 127;
 }
-
 
 uint randInt() {
   uint div = RAND_MAX / (NUM_BINS - 1);
@@ -46,9 +58,9 @@ uint randInt() {
 int main(int argc, char **argv) {
 
   int inputLength;
-  unsigned int *hostPack;
-  unsigned int *resultRef;
-  unsigned int *devicePack;
+  uint16_t *hostPack;
+  uint16_t *resultRef;
+  uint16_t *devicePack;
 
   //@@ Insert code below to read in inputLength from args
   if (argc != 2) {
@@ -60,8 +72,8 @@ int main(int argc, char **argv) {
   fprintf(stderr, "The input length is %d\n", inputLength);
 
   // @@ Insert code below to allocate Host memory for input and output
-  hostPack = (uint*) calloc(inputLength + NUM_BINS, sizeof(uint));
-  resultRef = (uint*) calloc(NUM_BINS, sizeof(uint));
+  hostPack = (uint16_t*) calloc(inputLength + NUM_BINS, sizeof(uint16_t));
+  resultRef = (uint16_t*) calloc(NUM_BINS, sizeof(uint16_t));
 
 
   //@@ Insert code below to initialize hostInput to random numbers whose values range from 0 to (NUM_BINS - 1)
@@ -76,11 +88,11 @@ int main(int argc, char **argv) {
   }
 
   //@@ Insert code below to allocate GPU memory here
-  cudaMalloc(&devicePack, (inputLength + NUM_BINS) * sizeof(uint));
+  cudaMalloc(&devicePack, (inputLength + NUM_BINS) * sizeof(uint16_t));
 
   clock_t start = clock();
   //@@ Insert code to Copy memory to the GPU here
-  cudaMemcpy(devicePack, hostPack, (inputLength + NUM_BINS) * sizeof(uint), cudaMemcpyHostToDevice);
+  cudaMemcpy(devicePack, hostPack, (inputLength + NUM_BINS) * sizeof(uint16_t), cudaMemcpyHostToDevice);
   printf("Copy host => device: %ld\n", clock() - start);
 
   //@@ Initialize the grid and block dimensions here
@@ -93,18 +105,9 @@ int main(int argc, char **argv) {
   printf("kernel 1: %ld\n", clock() - start);
 
 
-  //@@ Initialize the second grid and block dimensions here
-  dim3 blocksPerGrid2((NUM_BINS + TPB - 1) / TPB);
-  // dim3 threadsPerBlock(TPB);
-
-  //@@ Launch the second GPU Kernel here
-  start = clock();
-  convert_kernel<<<blocksPerGrid2, threadsPerBlock>>>(&devicePack[inputLength], NUM_BINS);
-  printf("kernel 2: %ld\n", clock() - start);
-
   //@@ Copy the GPU memory back to the CPU here
   start = clock();
-  cudaMemcpy(&hostPack[inputLength], &devicePack[inputLength], NUM_BINS * sizeof(uint), cudaMemcpyDeviceToHost);
+  cudaMemcpy(&hostPack[inputLength], &devicePack[inputLength], NUM_BINS * sizeof(uint16_t), cudaMemcpyDeviceToHost);
   printf("Copy device => host: %ld\n", clock() - start);
 
 

@@ -109,3 +109,32 @@ kernel2: 11.6
 copy D => H: 4705.6
 ```
 Why is the copy-back so slow?
+
+---
+
+## Attempt #6: Use pinned memory {/pinned}
+Idea: pinned memory should be faster for transfers, since we don't need to make as many copies
+
+```
+copy H => D: 1180.9
+kernel1: 29.7
+kernel2: 9.7
+copy D => H: 238.3
+```
+
+This makes copies more expensive, for some reason. 
+
+---
+
+## Attempt #6: Combining all the promising optimizations {/optimized}
+We'll take ideas from 
+- packing
+- small datatypes
+- combined kernels
+
+Results
+```
+copy H => D: 497.8
+kernel (combined): 43.8
+copy D => H: 307.3
+```

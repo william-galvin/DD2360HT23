@@ -1,6 +1,5 @@
 /* 
-  Packing histogram implementation
-  - input and bins become the same array
+  Pinned memory histogram implementation
 
   Usage: 
    $ make
@@ -46,9 +45,11 @@ uint randInt() {
 int main(int argc, char **argv) {
 
   int inputLength;
-  unsigned int *hostPack;
+  unsigned int *hostInput;
+  unsigned int *hostBins;
   unsigned int *resultRef;
-  unsigned int *devicePack;
+  unsigned int *deviceInput;
+  unsigned int *deviceBins;
 
   //@@ Insert code below to read in inputLength from args
   if (argc != 2) {
@@ -60,27 +61,45 @@ int main(int argc, char **argv) {
   fprintf(stderr, "The input length is %d\n", inputLength);
 
   // @@ Insert code below to allocate Host memory for input and output
-  hostPack = (uint*) calloc(inputLength + NUM_BINS, sizeof(uint));
   resultRef = (uint*) calloc(NUM_BINS, sizeof(uint));
 
+  cudaError_t err;
+  err = cudaHostAlloc(&hostInput, inputLength * sizeof(uint), cudaHostAllocDefault);
+  if (err) {
+    printf("Error allocating memory\n");
+    exit(-1);
+  }
+  memset(hostInput, 0, inputLength * sizeof(uint));
+
+  err = cudaHostAlloc(&hostBins, NUM_BINS * sizeof(uint), cudaHostAllocDefault);
+  if (err) {
+    printf("Error allocating memory\n");
+    exit(-1);
+  }
+  memset(hostBins, 0, NUM_BINS * sizeof(uint));
 
   //@@ Insert code below to initialize hostInput to random numbers whose values range from 0 to (NUM_BINS - 1)
   for (int i = 0; i < inputLength; i++) {
-    hostPack[i] = randInt();
+    hostInput[i] = randInt();
   }
 
   //@@ Insert code below to create reference result in CPU
   for (int i = 0; i < inputLength; i++) {
-    resultRef[hostPack[i]]++;
-    resultRef[hostPack[i]] = min(resultRef[hostPack[i]], 127);
+    resultRef[hostInput[i]]++;
+    resultRef[hostInput[i]] = min(resultRef[hostInput[i]], 127);
   }
 
   //@@ Insert code below to allocate GPU memory here
-  cudaMalloc(&devicePack, (inputLength + NUM_BINS) * sizeof(uint));
+  cudaMalloc(&deviceInput, inputLength * sizeof(uint));
+  cudaMalloc(&deviceBins, NUM_BINS * sizeof(uint));
+
 
   clock_t start = clock();
   //@@ Insert code to Copy memory to the GPU here
-  cudaMemcpy(devicePack, hostPack, (inputLength + NUM_BINS) * sizeof(uint), cudaMemcpyHostToDevice);
+  cudaMemcpy(deviceInput, hostInput, inputLength * sizeof(uint), cudaMemcpyHostToDevice);
+
+  //@@ Insert code to initialize GPU results
+  cudaMemcpy(deviceBins, hostBins, NUM_BINS * sizeof(uint), cudaMemcpyHostToDevice);
   printf("Copy host => device: %ld\n", clock() - start);
 
   //@@ Initialize the grid and block dimensions here
@@ -89,7 +108,7 @@ int main(int argc, char **argv) {
 
   //@@ Launch the GPU Kernel here
   start = clock();
-  histogram_kernel<<<blocksPerGrid, threadsPerBlock>>>(devicePack, &devicePack[inputLength], inputLength, NUM_BINS);
+  histogram_kernel<<<blocksPerGrid, threadsPerBlock>>>(deviceInput, deviceBins, inputLength, NUM_BINS);
   printf("kernel 1: %ld\n", clock() - start);
 
 
@@ -99,29 +118,32 @@ int main(int argc, char **argv) {
 
   //@@ Launch the second GPU Kernel here
   start = clock();
-  convert_kernel<<<blocksPerGrid2, threadsPerBlock>>>(&devicePack[inputLength], NUM_BINS);
+  convert_kernel<<<blocksPerGrid2, threadsPerBlock>>>(deviceBins, NUM_BINS);
   printf("kernel 2: %ld\n", clock() - start);
 
   //@@ Copy the GPU memory back to the CPU here
   start = clock();
-  cudaMemcpy(&hostPack[inputLength], &devicePack[inputLength], NUM_BINS * sizeof(uint), cudaMemcpyDeviceToHost);
+  cudaMemcpy(hostBins, deviceBins, NUM_BINS * sizeof(uint), cudaMemcpyDeviceToHost);
   printf("Copy device => host: %ld\n", clock() - start);
 
 
   //@@ Insert code below to compare the output with the reference
   for (int i = 0; i < NUM_BINS; i++) {
-    if (hostPack[inputLength + i] != resultRef[i]) {
-      printf("Error at index %d: expected %d but got %d.\n", i, resultRef[i], hostPack[inputLength + i]);
+    if (hostBins[i] != resultRef[i]) {
+      printf("Error at index %d: expected %d but got %d.\n", i, resultRef[i], hostInput[i]);
       return -1;
     }
   }
   fprintf(stderr, "Output is as expected.\n");
 
   //@@ Free the GPU memory here
-  cudaFree(devicePack);
+  cudaFree(deviceInput);
+  cudaFree(deviceBins);
+
 
   //@@ Free the CPU memory here
-  free(hostPack);
+  cudaFreeHost(hostInput);
+  cudaFreeHost(hostBins);
   free(resultRef);
 
   return 0;
